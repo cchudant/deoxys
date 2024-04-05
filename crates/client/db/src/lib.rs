@@ -14,6 +14,7 @@
 use std::fmt;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, OnceLock};
+use std::time::Duration;
 
 use anyhow::{bail, Context, Result};
 use bonsai_db::{BonsaiStorageAccess, DatabaseKeyMapping};
@@ -26,7 +27,7 @@ use sc_client_db::DatabaseSource;
 
 mod error;
 mod mapping_db;
-use rocksdb::{BoundColumnFamily, ColumnFamilyDescriptor, MultiThreaded, OptimisticTransactionDB, Options};
+use rocksdb::{BoundColumnFamily, ColumnFamilyDescriptor, MultiThreaded, OptimisticTransactionDB, Options, WriteBatchWithTransaction};
 use sierra_classes_db::SierraClassesDb;
 mod da_db;
 mod messaging_db;
@@ -50,7 +51,10 @@ struct DatabaseSettings {
     pub source: DatabaseSource,
 }
 
-pub type DB = OptimisticTransactionDB<MultiThreaded>;
+// pub type DB = OptimisticTransactionDB<MultiThreaded>;
+pub type DB = rocksdb::DB;
+pub type ColumnFamilyRef<'a> = rocksdb::ColumnFamilyRef<'a>;
+pub type RocksDBTransaction = WriteBatchWithTransaction<false>;
 
 pub(crate) fn open_database(config: &DatabaseSettings) -> Result<DB> {
     Ok(match &config.source {
@@ -60,7 +64,21 @@ pub(crate) fn open_database(config: &DatabaseSettings) -> Result<DB> {
     })
 }
 
-pub(crate) fn open_rocksdb(path: &Path, create: bool) -> Result<OptimisticTransactionDB<MultiThreaded>> {
+pub async fn stats_task(db: Arc<DB>) {
+    loop {
+        let ret = rocksdb::perf::get_memory_usage_stats(Some(&[db.as_ref()]), None).unwrap();
+
+        log::debug!("==== MEMMM AAAA ====");
+        log::debug!("mem_table_total {:?}", ret.mem_table_total);
+        log::debug!("mem_table_unflushed {:?}", ret.mem_table_unflushed);
+        log::debug!("mem_table_readers_total {:?}", ret.mem_table_readers_total);
+        log::debug!("cache_total {:?}", ret.cache_total);
+
+        tokio::time::sleep(Duration::from_secs(5)).await;
+    }
+}
+
+pub(crate) fn open_rocksdb(path: &Path, create: bool) -> Result<DB> {
     let mut opts = Options::default();
     opts.set_report_bg_io_stats(true);
     opts.set_use_fsync(false);
@@ -71,7 +89,7 @@ pub(crate) fn open_rocksdb(path: &Path, create: bool) -> Result<OptimisticTransa
     let cores = std::thread::available_parallelism().map(|e| e.get() as i32).unwrap_or(1);
     opts.increase_parallelism(i32::max(cores / 2, 1));
 
-    let db = OptimisticTransactionDB::<MultiThreaded>::open_cf_descriptors(
+    let db = DB::open_cf_descriptors(
         &opts,
         path,
         Column::ALL.iter().map(|col| ColumnFamilyDescriptor::new(col.rocksdb_name(), col.rocksdb_options())),
@@ -196,11 +214,11 @@ impl Column {
 }
 
 pub(crate) trait DatabaseExt {
-    fn get_column(&self, col: Column) -> Arc<BoundColumnFamily<'_>>;
+    fn get_column(&self, col: Column) -> ColumnFamilyRef;
 }
 
 impl DatabaseExt for DB {
-    fn get_column(&self, col: Column) -> Arc<BoundColumnFamily<'_>> {
+    fn get_column(&self, col: Column) -> ColumnFamilyRef {
         self.cf_handle(col.rocksdb_name()).expect("column not inititalized")
     }
 }
@@ -289,6 +307,7 @@ impl DeoxysBackend {
 
     fn new(config: &DatabaseSettings, cache_more_things: bool) -> Result<Self> {
         let db = Arc::new(open_database(config)?);
+        tokio::spawn(stats_task(db.clone()));
 
         Ok(Self {
             mapping: Arc::new(MappingDb::new(Arc::clone(&db), cache_more_things)),

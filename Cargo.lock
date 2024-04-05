@@ -952,7 +952,7 @@ dependencies = [
 [[package]]
 name = "bonsai-trie"
 version = "0.1.0"
-source = "git+https://github.com/antiyro/bonsai-trie.git?branch=oss#d1641a844b418a7e399a061f9d1cf38b52bbdfc2"
+source = "git+https://github.com/cchudant/bonsai-trie.git?branch=deoxys#af3d8a8f93cb18f75eb37f9d8fd8cbab6095cb55"
 dependencies = [
  "bitvec",
  "derive_more",
@@ -5864,6 +5864,7 @@ dependencies = [
  "starknet-types-core",
  "starknet_api",
  "thiserror",
+ "tokio",
  "uuid 1.6.1",
 ]
 

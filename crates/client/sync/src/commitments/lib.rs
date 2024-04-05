@@ -251,12 +251,10 @@ fn contract_trie_root(
         .collect::<Result<Vec<_>, BonsaiStorageError<BonsaiDbError>>>()?;
     log::debug!("contract_trie_root updates: {:?}", std::time::Instant::now() - start);
 
-    let start = std::time::Instant::now();
     for (contract_address, class_commitment_leaf_hash) in updates {
         let key = key(contract_address.0.0.0);
         bonsai_contract.insert(identifier, &key, &class_commitment_leaf_hash.into())?;
     }
-    log::debug!("contract_trie_root bonsai_contract.commit: {:?}", std::time::Instant::now() - start);
 
     let start = std::time::Instant::now();
     bonsai_contract.commit(BasicId::new(block_number))?;

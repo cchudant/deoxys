@@ -7,7 +7,7 @@ use rocksdb::WriteBatchWithTransaction;
 use sp_runtime::traits::Block as BlockT;
 use starknet_api::hash::StarkHash;
 
-use crate::{Column, DatabaseExt, DbError, DB};
+use crate::{Column, DatabaseExt, DbError, RocksDBTransaction, DB};
 
 /// The mapping to write in db
 #[derive(Debug)]
@@ -70,7 +70,7 @@ impl MappingDb {
         let starknet_tx_hashes_col = self.db.get_column(Column::StarknetTransactionHashesCache);
         let starknet_block_hashes_col = self.db.get_column(Column::StarknetBlockHashesCache);
 
-        let mut transaction: WriteBatchWithTransaction<true> = Default::default();
+        let mut transaction = RocksDBTransaction::default();
 
         let substrate_hashes = match self.block_hash(commitment.starknet_block_hash) {
             Ok(Some(mut data)) => {

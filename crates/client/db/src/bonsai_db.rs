@@ -11,9 +11,7 @@ use rocksdb::{
 };
 use starknet_types_core::hash::StarkHash;
 
-use crate::{BonsaiDbError, Column, DatabaseExt, DB};
-
-pub type RocksDBTransaction = WriteBatchWithTransaction<true>;
+use crate::{BonsaiDbError, Column, DatabaseExt, RocksDBTransaction, DB};
 
 #[derive(Clone, Debug)]
 pub(crate) struct DatabaseKeyMapping {
@@ -258,6 +256,7 @@ impl<'db> BonsaiDatabase for BonsaiDb<'db> {
 
     fn write_batch(&mut self, batch: Self::Batch) -> Result<(), Self::DatabaseError> {
         Ok(self.db.write(batch)?)
+        // Ok(())
     }
 }
 
@@ -382,19 +381,20 @@ where
 
     fn transaction(&self, id: BasicId) -> Option<Self::Transaction> {
         log::trace!("Generating RocksDB transaction");
-        if let Some(snapshot) = self.snapshots.get(&id) {
-            let write_opts = WriteOptions::default();
-            let mut txn_opts = OptimisticTransactionOptions::default();
-            txn_opts.set_snapshot(true);
-            let txn = self.db.transaction_opt(&write_opts, &txn_opts);
+        // if let Some(snapshot) = self.snapshots.get(&id) {
+        //     let write_opts = WriteOptions::default();
+        //     let mut txn_opts = OptimisticTransactionOptions::default();
+        //     txn_opts.set_snapshot(true);
+        //     let txn = self.db.transaction_opt(&write_opts, &txn_opts);
 
-            let mut read_options = ReadOptions::default();
-            read_options.set_snapshot(snapshot);
+        //     let mut read_options = ReadOptions::default();
+        //     read_options.set_snapshot(snapshot);
 
-            Some(BonsaiTransaction { txn, db: self.db, column_mapping: self.column_mapping.clone() })
-        } else {
-            None
-        }
+        //     Some(BonsaiTransaction { txn, db: self.db, column_mapping: self.column_mapping.clone() })
+        // } else {
+        //     None
+        // }
+        None
     }
 
     fn merge(&mut self, transaction: Self::Transaction) -> Result<(), Self::DatabaseError> {
